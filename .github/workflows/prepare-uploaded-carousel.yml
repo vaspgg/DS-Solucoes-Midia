@@ -1,0 +1,46 @@
+name: Prepare uploaded carousel
+on:
+  push:
+    paths:
+      - 'DS_Solucoes_Carrossel_Corrigido_1080.zip'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract carousel
+        run: |
+          rm -rf instagram/current
+          mkdir -p instagram/current /tmp/carousel
+          unzip -o DS_Solucoes_Carrossel_Corrigido_1080.zip -d /tmp/carousel
+          i=1
+          while IFS= read -r -d '' f; do
+            n=$(printf "%02d" "$i")
+            cp "$f" "instagram/current/$n.jpg"
+            i=$((i+1))
+          done < <(find /tmp/carousel -type f \( -iname '*.jpg' -o -iname '*.jpeg' \) -print0 | sort -z)
+          test "$i" -eq 7
+      - name: Validate images
+        run: |
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          files=sorted(Path("instagram/current").glob("*.jpg"))
+          assert len(files)==6
+          for f in files:
+              im=Image.open(f)
+              assert im.format=="JPEG", (f, im.format)
+              assert im.size==(1080,1080), (f, im.size)
+              assert f.stat().st_size <= 8*1024*1024
+              print(f, im.size, f.stat().st_size)
+          PY
+      - name: Commit validated media
+        run: |
+          git config user.name "DS Solucoes Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add instagram/current
+          git commit -m "Prepare corrected Instagram carousel"
+          git push
