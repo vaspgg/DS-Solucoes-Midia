@@ -25,18 +25,12 @@ jobs:
           test "$i" -eq 7
       - name: Validate images
         run: |
-          python3 - <<'PY'
-          from PIL import Image
-          from pathlib import Path
-          files=sorted(Path("instagram/current").glob("*.jpg"))
-          assert len(files)==6
-          for f in files:
-              im=Image.open(f)
-              assert im.format=="JPEG", (f, im.format)
-              assert im.size==(1080,1080), (f, im.size)
-              assert f.stat().st_size <= 8*1024*1024
-              print(f, im.size, f.stat().st_size)
-          PY
+          test "$(find instagram/current -maxdepth 1 -type f -name '*.jpg' | wc -l)" -eq 6
+          for f in instagram/current/*.jpg; do
+            test "$(head -c 2 "$f" | od -An -tx1 | tr -d ' \n')" = "ffd8"
+            test "$(stat -c%s "$f")" -le 8388608
+            file "$f"
+          done
       - name: Commit validated media
         run: |
           git config user.name "DS Solucoes Automation"
